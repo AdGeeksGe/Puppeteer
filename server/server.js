@@ -1,6 +1,7 @@
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cors = require('cors');
+const { analyzeWebsite } = require('./gemini.js');
 
 const app = express();
 const port = 3001;
@@ -46,7 +47,11 @@ app.post('/api/run-puppeteer', async (req, res) => {
     const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
     await browser.close();
 
-    res.json({ title: pageTitle, screenshot: screenshot,});
+    //AI analysis
+    const analysis = await analyzeWebsite(screenshot, url);
+
+    res.json({ title: pageTitle, screenshot: screenshot, analysis: analysis});
+    console.log(analysis);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to run Puppeteer script' });

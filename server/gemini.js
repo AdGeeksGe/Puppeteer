@@ -1,48 +1,38 @@
-// To run this code you need to install the following dependencies:
-// npm install @google/genai mime
-// npm install -D @types/node
+// adgeeksge/puppeteer/Puppeteer-2ec5cebc57fe0b1d1c5e42b19da82d0062171351/server/gemini.js
 
-import {
-  GoogleGenAI,
-} from '@google/genai';
+const { GoogleGenerativeAI } = require('@google/genai'); // Corrected package name
 
-async function main() {
-  const ai = new GoogleGenAI({
-    apiKey: "AIzaSyCsf9NLYLk_QCOLM4mMkWaAZsy-xJei_pY",
-  });
-  const tools = [
-    {
-      googleSearch: {
-      }
-    },
-  ];
-  const config = {
-    thinkingConfig: {
-      thinkingBudget: -1,
-    },
-    tools,
-  };
-  const model = 'gemini-2.5-pro';
-  const contents = [
-    {
-      role: 'user',
-      parts: [
-        {
-          text: `Analyze adgeeks.ge website ui and provide a detailed report on its design, usability, and overall user experience. Include suggestions for improvement and highlight any standout features.`,
+/**
+ * Analyzes a website's UI using a screenshot and URL.
+ * @param {string} screenshot - The base64 encoded screenshot of the website.
+ * @param {string} url - The URL of the website.
+ * @returns {Promise<string>} - The analysis from the Gemini API.
+ */
+async function analyzeWebsite(screenshot, url) {
+    // It is highly recommended to use environment variables for your API key.
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+
+    const prompt = `Analyze the UI of the website at ${url} and provide a detailed report on its design, usability, and overall user experience. Include suggestions for improvement and highlight any standout features.`;
+
+    const imagePart = {
+        inlineData: {
+            data: screenshot,
+            mimeType: 'image/png',
         },
-      ],
-    },
-  ];
+    };
 
-  const response = await ai.models.generateContentStream({
-    model,
-    config,
-    contents,
-  });
-  let fileIndex = 0;
-  for await (const chunk of response) {
-    console.log(chunk.text);
-  }
+    try {
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        const text = response.text();
+        return text;
+    } catch (error) {
+        console.error("Error analyzing with Gemini:", error);
+        throw new Error("Failed to get analysis from Gemini API.");
+    }
 }
 
-main();
+// Export the function to be used in other files
+module.exports = { analyzeWebsite };
