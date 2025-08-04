@@ -1,3 +1,5 @@
+// server/server.js (Alternative: Using server-friendly Puppeteer args)
+
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cors = require('cors');
@@ -5,59 +7,62 @@ const { analyzeWebsite } = require('./gemini.js');
 
 const app = express();
 const port = 3001;
+let browserInstance;
 
 app.use(cors());
 app.use(express.json());
 
 app.post('/api/run-puppeteer', async (req, res) => {
-  const { url } = req.body;
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-  try {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    const { url } = req.body;
+    if (!url) {
+        return res.status(400).json({ error: 'URL is required' });
+    }
 
-    // Scroll to the bottom of the page to ensure all content is loaded
-    await page.evaluate(async () => {
-      await new Promise(resolve => {
-        let totalHeight = 0;
-        const distance = 100;
-        const timer = setInterval(() => {
-          const scrollHeight = document.body.scrollHeight;
-          window.scrollBy(0, distance);
-          totalHeight += distance;
-          if (totalHeight >= scrollHeight) {
-            clearInterval(timer);
-            resolve();
-          }
-        }, 100);
-      });
-    });
-    // Scroll back to the top of the page
-    await page.evaluate(() => {
-      window.scrollTo(0, 0);
-    });
-    // Wait for a short time to ensure all content is fully loaded
-    await new Promise(resolve => setTimeout(resolve, 500));
+    let page;
+    try {
+        page = await browserInstance.newPage();
+        await page.goto(url, { waitUntil: 'networkidle2' });
 
-    const pageTitle = await page.title();
-    const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
-    await browser.close();
+        const pageTitle = await page.title();
+        const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
 
-    //AI analysis
-    const analysis = await analyzeWebsite(screenshot, url);
+        const analysis = await analyzeWebsite(screenshot, url);
+        res.json({ title: pageTitle, screenshot: screenshot, analysis: analysis });
 
-    res.json({ title: pageTitle, screenshot: screenshot, analysis: analysis});
-    console.log(analysis);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to run Puppeteer script' });
-  }
+    } catch (error) {
+        console.error("An error occurred in the /api/run-puppeteer route:", error);
+        res.status(500).json({ error: 'Failed to process the request. See server logs.' });
+    } finally {
+        if (page) await page.close();
+    }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
-});
+async function startServer() {
+    try {
+        console.log("[SERVER] Launching persistent browser with server-friendly arguments...");
+
+        // THE CHANGE IS HERE: Added 'args' for stability in server environments.
+        browserInstance = await puppeteer.launch({
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process', // This is for testing only, do not use in production
+                '--disable-gpu'
+            ]
+        });
+
+        app.listen(port, () => {
+            console.log(`[SERVER] Ready and listening on http://localhost:${port}`);
+        });
+
+    } catch (error) {
+        console.error("!!!!!! [SERVER] FAILED TO LAUNCH BROWSER !!!!!!", error);
+        process.exit(1);
+    }
+}
+
+startServer();
