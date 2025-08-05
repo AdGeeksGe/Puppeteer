@@ -1,6 +1,11 @@
-const express = require('express');
-const puppeteer = require('puppeteer');
-const cors = require('cors');
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import cors from "cors";
+import puppeteer from "puppeteer";
+import pupiter from "./pupiter.js";
+import { main } from "./gemini.js";
 
 const app = express();
 const port = 3001;
@@ -8,51 +13,24 @@ const port = 3001;
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/run-puppeteer', async (req, res) => {
+app.post("/api/run-puppeteer", async (req, res) => {
   const { url } = req.body;
   if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
+    return res.status(400).json({ error: "URL is required" });
   }
-  try {
-    const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.goto(url, { waitUntil: 'networkidle2' });
+  const { pageTitle, screenshot } = await pupiter(url);
 
-    // Scroll to the bottom of the page to ensure all content is loaded
-    await page.evaluate(async () => {
-      await new Promise(resolve => {
-        let totalHeight = 0;
-        const distance = 100;
-        const timer = setInterval(() => {
-          const scrollHeight = document.body.scrollHeight;
-          window.scrollBy(0, distance);
-          totalHeight += distance;
-          if (totalHeight >= scrollHeight) {
-            clearInterval(timer);
-            resolve();
-          }
-        }, 100);
-      });
-    });
-    // Scroll back to the top of the page
-    await page.evaluate(() => {
-      window.scrollTo(0, 0);
-    });
-    // Wait for a short time to ensure all content is fully loaded
-    await new Promise(resolve => setTimeout(resolve, 500));
+  // And here you call main() with that screenshot:
+  const aiOutput = await main(screenshot, url, pageTitle);
+  console.log(aiOutput);
 
-    const pageTitle = await page.title();
-    const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
-    await browser.close();
-
-
-
-    res.json({ title: pageTitle, screenshot: screenshot,});
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to run Puppeteer script' });
-  }
+  // Format the response to match what the client expects
+  res.json({
+    url,
+    title: pageTitle,
+    screenshot,
+    analysis: aiOutput.fullResponse,
+  });
 });
 
 app.listen(port, () => {

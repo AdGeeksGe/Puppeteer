@@ -1,56 +1,40 @@
-const GoogleGenAI = require('@google/genai').GoogleGenAI;
-const fs = require('fs');
-const path = require('path');
+// index.mjs
+import { GoogleGenAI } from "@google/genai";
+import fs from "fs/promises";
+import path from "path";
 
-async function main(screenshoot, url) {
-  // const screenshot = fs.readFileSync("./screenshoot.png", {encoding: "base64",});
-  const ai = new GoogleGenAI({
-    apiKey: "AIzaSyCsf9NLYLk_QCOLM4mMkWaAZsy-xJei_pY",
-  });
-  const tools = [
-    {
-      googleSearch: {
-      }
-    },
-  ];
-  const config = {
-    thinkingConfig: {
-      thinkingBudget: -1,
-    },
-    tools,
-  };
-  const model = 'gemini-2.5-pro';
-  const imagePart = {
-    inlineData: {
-        data: screenshot,
-        mimeType: 'image/png',
-    },
-  };
-  const website = url;
-  const prompt = fs
-        .readFileSync("prompt.txt", "utf8")
-        .replace("{{WEBSITE_URL}}", website);
+export async function main(screenshotBase64, url, pageTitle) {
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const tools = [{ googleSearch: {} }];
+  const config = { thinkingConfig: { thinkingBudget: -1 }, tools };
+  const model = "gemini-2.5-pro";
+
+  let prompt = await fs.readFile(path.resolve("./prompt.txt"), "utf8");
+  prompt = prompt
+    .replace("{{WEBSITE_URL}}", url)
+    .replace("{{PAGE_TITLE}}", pageTitle ?? "");
+
   const contents = [
     {
-      role: 'user',
-      parts: [
+      role: "user",
+      parts: [{ text: prompt }],
+      images: [
         {
-          text: prompt,
+          inlineData: { data: screenshotBase64, mimeType: "image/png" },
         },
       ],
-      images: [imagePart],
     },
   ];
 
-  const response = await ai.models.generateContentStream({
+  const stream = await ai.models.generateContentStream({
     model,
     config,
     contents,
   });
-  let fileIndex = 0;
-  for await (const chunk of response) {
-    console.log(chunk.text);
-  }
-}
 
-main();
+  let fullResponse = "";
+  for await (const chunk of stream) {
+    fullResponse += chunk.text;
+  }
+  return { fullResponse };
+}
