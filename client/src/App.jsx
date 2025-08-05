@@ -7,30 +7,43 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [url, setUrl] = useState('');
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     setLoading(true);
-    fetch('http://localhost:3001/api/run-puppeteer', {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url: url,
-      }),
-    })
-    .then((res) => res.json())
-    .then((result) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/run-puppeteer', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: url,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("Full server response:", JSON.stringify(result, null, 2));
+      
+      if (!result.analysis) {
+        console.warn("Analysis is missing from response");
+      } else {
+        console.log("Analysis received:", result.analysis.substring(0, 100) + "...");
+      }
+
       setData(result);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+    } finally {
       setLoading(false);
-    })
-    .catch((error) => {
-      console.error("Error fetching data:", error);
-      setLoading(false);
-    });
+    }
   };
 
   if (loading) return <p>Loading...</p>;
-  console.error("Data:", data);
+  console.log("Current data state:", data);
   return (
     <div className="App">
       <h1>Advanced Sitesnap</h1>

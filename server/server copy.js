@@ -1,3 +1,4 @@
+const GoogleGenAI = require('@google/genai').GoogleGenAI;
 const express = require('express');
 const puppeteer = require('puppeteer');
 const cors = require('cors');
@@ -46,9 +47,56 @@ app.post('/api/run-puppeteer', async (req, res) => {
     const screenshot = await page.screenshot({ encoding: 'base64', fullPage: true });
     await browser.close();
 
+    // Call Gemini AI to analyze the screenshot
+    const ai = new GoogleGenAI({
+      apiKey: "AIzaSyCsf9NLYLk_QCOLM4mMkWaAZsy-xJei_pY",
+    });
+    const tools = [
+      {
+        googleSearch: {
+        }
+      },
+    ];
+    const config = {
+      thinkingConfig: {
+        thinkingBudget: -1,
+      },
+      tools,
+    };
+    const model = 'gemini-2.5-pro';
+    const imagePart = {
+      inlineData: {
+          data: screenshot,
+          mimeType: 'image/png',
+      },
+    };
+    const prompt = fs
+      .readFileSync("prompt.txt", "utf8")
+      .replace("{{WEBSITE_URL}}", url);
+      const contents = [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+          images: [screenshot],
+        },
+      ];
+    const response = await ai.models.generateContentStream({
+      model,
+      config,
+      contents,
+    });
+    let fileIndex = 0;
+    const analysis = '';
+    for await (const chunk of response) {
+      console.log(chunk.text);
+      analysis += chunk.text;
+    }
 
-
-    res.json({ title: pageTitle, screenshot: screenshot,});
+    res.json({ title: pageTitle, screenshot: screenshot, analysis: analysis });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to run Puppeteer script' });

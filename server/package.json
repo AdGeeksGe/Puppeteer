@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@google/generative-ai": "^0.24.1",
     "cors": "latest",
+    "dotenv": "^17.2.1",
     "express": "latest",
     "puppeteer": "latest"
   }
